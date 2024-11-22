@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-
 class SkinColorAnalyzer:
 
     def detect_skin_region(self, image):

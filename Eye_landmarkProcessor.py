@@ -105,7 +105,7 @@ class EyeLandmarkProcessor:
                 mask_alpha = mask[:, :, 3]
 
                 # カラー部分をぼかす
-                ksize = (5, 5)  # カーネルサイズは調整可能
+                ksize = (3, 3)  # カーネルサイズは調整可能
                 blurred_rgb = cv2.GaussianBlur(mask_rgb, ksize, 0)
 
                 # アルファチャンネルをぼかす

@@ -1,18 +1,13 @@
+# Eye_landmarkProcessor.py
 import cv2
 import mediapipe as mp
 import numpy as np
 from scipy.interpolate import CubicSpline
 
-
-# 1. 画像の読み込み
-
-# 2. MediaPipeの初期化
 class EyeLandmarkProcessor:
-    
     def initialize_face_mesh(self):
         mp_face_mesh = mp.solutions.face_mesh
 
-        # パラメータを調整してFaceMeshを初期化
         face_mesh = mp_face_mesh.FaceMesh(
             static_image_mode=True,
             max_num_faces=2,
@@ -21,23 +16,31 @@ class EyeLandmarkProcessor:
             min_tracking_confidence=0.8
         )
         return face_mesh
-    
+
     def image_path(self, file_path):
-        image_path = file_path
-        
-        img = cv2.imread(image_path)
+        """
+        画像を読み込み、RGB形式に変換します。
+        """
+        img = cv2.imread(file_path)
+        if img is None:
+            raise FileNotFoundError(f"画像が見つかりません: {file_path}")
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        print(f"画像を読み込みました: {file_path}, 画像サイズ: {img_rgb.shape}")
         return img_rgb
 
-    def process_landmarks_and_create_mask(self, face_mesh,img_rgb, img, average_color_bgra):
-        # 3. 顔のランドマーク検出
+    def process_landmarks_and_create_mask(self, face_mesh, img_rgb, img, average_color_bgra=None):
+        """
+        顔のランドマークを検出し、目の部分にマスクを適用します。
+        """
+        # 顔のランドマーク検出
         results = face_mesh.process(img_rgb)
 
         if not results.multi_face_landmarks:
             print("顔が検出されませんでした。")
+            return img, None  # 元の画像を返す
         else:
             for face_landmarks in results.multi_face_landmarks:
-                # 左目のランドマークインデックス
+                # 左目と右目のランドマークインデックス
                 left_eye_indices = [159, 158, 157, 173, 133, 246, 161, 160]
                 right_eye_indices = [386, 385, 384, 398, 362, 263, 466]
 
@@ -82,8 +85,8 @@ class EyeLandmarkProcessor:
                 cs2 = CubicSpline(x2, y2)
 
                 # 補間用の細かいx値を生成
-                x_fine = np.linspace(x.min(), x.max(), 100)
-                x_fine2 = np.linspace(x2.min(), x2.max(), 100)
+                x_fine = np.linspace(x.min(), x.max(), 10)
+                x_fine2 = np.linspace(x2.min(), x2.max(), 15)
 
                 # 補間されたy値を計算
                 y_fine = cs(x_fine)
@@ -96,22 +99,19 @@ class EyeLandmarkProcessor:
                 # アルファチャンネル付きのマスクを作成
                 mask = np.zeros((h, w, 4), dtype=np.uint8)
 
-                # マスクに線を描画（白色、アルファチャンネルも設定）
-                cv2.polylines(mask, [points_left], isClosed=False, color=average_color_bgra, thickness=1)
-                cv2.polylines(mask, [points_right], isClosed=False, color=average_color_bgra, thickness=1)
+                # マスクに線を描画（指定色、アルファチャンネルも設定）
+                if average_color_bgra is None:
+                    average_color_bgra = (158, 183, 207, 255)  # 黒色
+                cv2.polylines(mask, [points_left], isClosed=False, color=average_color_bgra, thickness=1, lineType=cv2.LINE_AA)
+                cv2.polylines(mask, [points_right], isClosed=False, color=average_color_bgra, thickness=1, lineType=cv2.LINE_AA)
 
                 # マスクをカラー部分とアルファチャンネルに分離
                 mask_rgb = mask[:, :, :3]
                 mask_alpha = mask[:, :, 3]
 
-                # カラー部分をぼかす
-                ksize = (3, 3)  # カーネルサイズは調整可能
-                blurred_rgb = cv2.GaussianBlur(mask_rgb, ksize, 0)
-
-                # アルファチャンネルをぼかす
-                blurred_alpha = cv2.GaussianBlur(mask_alpha, ksize, 0)
-
-                # ぼかしたカラー部分とアルファチャンネルを再度結合
+                # ぼかし処理を行わない
+                blurred_rgb = mask_rgb.copy()
+                blurred_alpha = mask_alpha.copy()
                 blurred_mask = np.dstack([blurred_rgb, blurred_alpha])
 
                 # 元の画像にアルファチャンネルを追加
@@ -127,11 +127,12 @@ class EyeLandmarkProcessor:
 
                 # アルファチャンネルを削除してBGR画像に戻す
                 result_img = cv2.cvtColor(img_rgba, cv2.COLOR_BGRA2BGR)
-                return result_img
-            
-            
+                return result_img, face_landmarks  # ランドマークを返す
+
     def result(self, result_img):
-        # 結果を表示
+        """
+        処理結果の画像を表示します。
+        """
         cv2.imshow('Result', result_img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()

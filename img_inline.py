@@ -1,7 +1,9 @@
+# img_inline.py
 import cv2
 import numpy as np
-class SkinColorAnalyzer:
 
+class SkinColorAnalyzer:
+    
     def detect_skin_region(self, image):
         # BGRからRGBに変換
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -23,17 +25,28 @@ class SkinColorAnalyzer:
         skin_pixel_values = image_rgb[skin_indices]
         return skin_pixels, skin_pixel_values
 
-    def calculate_average_color(self, skin_pixel_values):
+    def calculate_average_color(self, skin_pixel_values, darkness_factor=0.1):
+        """
+        平均色を計算し、暗くするためにRGB値をスケーリングします。
+
+        :param skin_pixel_values: 肌のピクセル値（RGB）
+        :param darkness_factor: 色を暗くするための係数（0〜1）
+        :return: BGRA形式の平均色タプル
+        """
+        if skin_pixel_values.size == 0:
+            # 肌が検出されなかった場合のデフォルト色（黒）
+            return (0, 0, 0, 255)
+        
         # 平均色の計算
         average_color = skin_pixel_values.mean(axis=0).astype(int)
+        
+        # 暗さ調整（係数を掛けて色を暗くする）
+        average_color = np.clip(average_color * darkness_factor, 0, 255).astype(int)
+        
         # アルファ値（不透明度）を追加
         average_color = np.append(average_color, 255)
-        print(average_color)
+        print(f"Average Color (暗く後): {average_color}")
+        
         # RGBからBGRAに変換（OpenCVはBGR順なので）
         average_color_bgra = tuple(int(c) for c in average_color[::-1])
         return average_color_bgra
-
-
-
-
-
